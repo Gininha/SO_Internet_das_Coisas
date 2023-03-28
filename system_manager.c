@@ -7,7 +7,9 @@
 #include <fcntl.h>
 #include <semaphore.h> 
 #include <string.h>
+
 #include "Shared_Memory.h"
+#include "log.h"
 
 #define DEBUG
 #define NUM_THREADS 3
@@ -16,45 +18,21 @@ pthread_t threads[NUM_THREADS];
 Infos *info;
 Registos *tudo;
 sem_t *mutex;
+FILE *log_file;
 
-typedef struct{
-    int QUEUE_SZ;
-    int N_WORKERS;
-    int MAX_KEYS;
-    int MAX_SENSORS;
-    int MAX_ALERTS;
-}Configuracoes;
-
-
-Configuracoes* leitura_ficheiro(){
-
-    FILE * file = fopen("Configuracoes.txt", "r");
-    if(file == NULL) printf("Ficheiro nao encontrado\n");
-
-    int a,b,c,d,e;
-    Configuracoes *configs = malloc(sizeof(Configuracoes));
-
-    if (fscanf(file, "%d %d %d %d %d", &a, &b, &c, &d, &e) != 5) {
-        printf("Erro ao ler ficheiro\n");
-    }
-
-    configs->QUEUE_SZ = a;
-    configs->N_WORKERS = b;
-    configs->MAX_KEYS = c;
-    configs->MAX_SENSORS = d;
-    configs->MAX_ALERTS = e;
-
-    fclose(file);
-
-    return configs;
-}
 
 void worker(){
     
+    char log_message[100];
+    FILE *f = fopen("log.txt", "a");
+
     #ifdef DEBUG
     printf("Worker [%d] created!!!\n", getpid());
     #endif
-    
+
+    sprintf(log_message, "%s %d %s", "Worker", getpid(), "created!!!\n");
+    write_to_log_procs(f, log_message);
+
     Registos *R = malloc(sizeof(Infos));
 
     char nome[33];
@@ -66,16 +44,21 @@ void worker(){
     R->total = 1;
     R->media = 1.0;
 
-    printf("Worker [%d] writting!!!\n", getpid());
+    sprintf(log_message, "%s %d %s", "Worker", getpid(), "writing!!!\n");
 
     sem_wait(mutex);
     write_to_shared_memory(tudo, info, R);
+    write_to_log_procs(f, log_message);
     sem_post(mutex);
 
     #ifdef DEBUG
     printf("Worker [%d] leaving!!!\n", getpid());
     #endif
-    
+
+    sprintf(log_message, "%s %d %s", "Worker", getpid(), "leaving!!!\n");
+    write_to_log_procs(f, log_message);
+
+    fclose(f);
     exit(0);
 }
 
@@ -83,6 +66,10 @@ void alerts_watcher(){
     #ifdef DEBUG
     printf("Alert Watcher [%d] created!!!\n", getpid());
     #endif
+
+    write_to_log(log_file, ALERTS_WATCHER_START);
+
+    write_to_log(log_file, ALERTS_WATCHER_END);
 
     #ifdef DEBUG
     printf("Alert Watcher [%d] leaving!!!\n", getpid());
@@ -96,6 +83,11 @@ void *console_reader(void* p){
     #ifdef DEBUG
     printf("Thread console_reader [%d] starting!!!\n", id);
     #endif
+
+    write_to_log(log_file, CONSOLE_READER_START);
+
+    write_to_log(log_file, CONSOLE_READER_END);
+    
     pthread_exit(NULL);
 }
 
@@ -106,6 +98,11 @@ void *sensor_reader(void* p){
     #ifdef DEBUG
     printf("Thread sensor_reader [%d] starting!!!\n", id);
     #endif
+
+    write_to_log(log_file, SENSOR_READER_START);
+
+    write_to_log(log_file, SENSOR_READER_END);
+
     pthread_exit(NULL);
 }
 
@@ -116,21 +113,33 @@ void *dispatcher(void* p){
     #ifdef DEBUG
     printf("Thread dispatcher [%d] starting!!!\n", id);
     #endif
+
+    write_to_log(log_file, DISPATCHER_START);
+
+    write_to_log(log_file, DISPATCHER_END);
+
     pthread_exit(NULL);
 }
 
 
-int main(){
+int main(int argc, char *argv[]){
+
+    if(argc != 2){
+        printf("./home_iot <ficheiro_config>\n");
+        return 0;
+    }
 
     Configuracoes *configs;
     int threads_id[NUM_THREADS];
     int i;
 
-    configs = leitura_ficheiro();
+    configs = leitura_ficheiro(argv[1]);
 
     #ifdef DEBUG
     printf("Queue_sz: %d\nN_Workers: %d\nMax_Keys: %d\nMax_Sensors: %d\nMax_Alerts: %d\n", configs->QUEUE_SZ, configs->N_WORKERS, configs->MAX_KEYS, configs->MAX_SENSORS, configs->MAX_ALERTS);
     #endif
+
+    write_to_log(log_file, PROG_START);
 
     //Criaçao shared memory
     tudo = create_shared_memory(configs->MAX_KEYS);
@@ -206,6 +215,8 @@ int main(){
     get_rid_shm(tudo);
     get_rid_shm_infos(info);
 
+    write_to_log(log_file, PROG_END);
+    
     exit(0);
 }
 
