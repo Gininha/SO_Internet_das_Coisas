@@ -1,37 +1,21 @@
 #include "log.h"
 
-void write_to_log_procs(FILE *Pointer, char *string){
+
+void write_to_log(char *string){
     
-    if(Pointer == NULL){
-        printf("Erro\n");
+    time_t now = time(NULL);           // get the current time
+    struct tm *local_time = localtime(&now);  // convert it to local time
+    char time_str[9];
+    strftime(time_str, sizeof(time_str), "%T", local_time);  // format time as HH:MM:SS string
+
+   int fd = open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+
+    if (fd == -1) {
+        perror("Error opening log file");
         return;
     }
-
-    time_t now = time(NULL);           // get the current time
-    struct tm *local_time = localtime(&now);  // convert it to local time
-    char time_str[9];
-    strftime(time_str, sizeof(time_str), "%T", local_time);  // format time as HH:MM:SS string
-
-    fprintf(Pointer, "%s %s", time_str, string);
-
-    return;
-
-}
-
-
-void write_to_log(FILE *Pointer, char *string){
-    
-    time_t now = time(NULL);           // get the current time
-    struct tm *local_time = localtime(&now);  // convert it to local time
-    char time_str[9];
-    strftime(time_str, sizeof(time_str), "%T", local_time);  // format time as HH:MM:SS string
-
-    Pointer = fopen("log.txt", "a");
-    fprintf(Pointer, "%s %s", time_str, string);
-    fclose(Pointer);
-
-    return;
-
+    write(fd, string, strlen(string));
+    close(fd);
 }
 
 Configuracoes* leitura_ficheiro(char *nome){

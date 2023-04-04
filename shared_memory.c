@@ -1,20 +1,19 @@
-#include <stdio.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <string.h>
-#include <stdlib.h>
-
 #include "Shared_Memory.h"
-
 
 int shmid, shmid2;
 
-Registos* create_shared_memory(int num_registos) {
+Registos* open_shared_memory(int num_registos){
 
     Registos *pointer_registos;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_REG_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
 
     // allocate shared memory
-    if ((shmid = shmget(IPC_PRIVATE, sizeof(Registos)*num_registos, IPC_CREAT | 0777)) == -1) {
+    if ((shmid = shmget(key, sizeof(Registos)*num_registos, 0777)) == -1) {
         perror("shmget");
         exit(1);
     }
@@ -28,12 +27,68 @@ Registos* create_shared_memory(int num_registos) {
     return pointer_registos;
 }
 
+Registos* create_shared_memory(int num_registos) {
+
+    Registos *pointer_registos;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_REG_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // allocate shared memory
+    if ((shmid = shmget(key, sizeof(Registos)*num_registos, IPC_CREAT | 0777)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // attach shared memory to pointer
+    if ((pointer_registos = (Registos*) shmat(shmid, NULL, 0)) == (void*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    return pointer_registos;
+}
+
+Infos* open_shared_memory_infos(){
+
+    Infos *pointer_infos;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_INFOS_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // allocate shared memory
+    if ((shmid2 = shmget(key, sizeof(Infos), 0777)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // attach shared memory to pointer
+    if ((pointer_infos = (Infos*) shmat(shmid2, NULL, 0)) == (void*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    return pointer_infos;
+}
+
 Infos* create_shared_memory_infos(){
 
     Infos *pointer_infos;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_INFOS_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
 
     // allocate shared memory
-    if ((shmid2 = shmget(IPC_PRIVATE, sizeof(Infos), IPC_CREAT | 0777)) == -1) {
+    if ((shmid2 = shmget(key, sizeof(Infos), IPC_CREAT | 0777)) == -1) {
         perror("shmget");
         exit(1);
     }

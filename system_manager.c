@@ -1,13 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <semaphore.h> 
-#include <string.h>
-
 #include "Shared_Memory.h"
 #include "log.h"
 
@@ -17,21 +7,30 @@
 pthread_t threads[NUM_THREADS];
 Infos *info;
 Registos *tudo;
-sem_t *mutex;
-FILE *log_file;
+sem_t *mutex_shm, *mutex_log;
+pthread_mutex_t mutex_threads;
 
+void write_log(char *log_message){
+
+    sem_wait(mutex_log);
+    pthread_mutex_lock(&mutex_threads);
+    write_to_log(log_message);
+    pthread_mutex_unlock(&mutex_threads);
+    sem_post(mutex_log);
+    
+}
 
 void worker(){
     
     char log_message[100];
-    FILE *f = fopen("log.txt", "a");
 
     #ifdef DEBUG
     printf("Worker [%d] created!!!\n", getpid());
     #endif
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "created!!!\n");
-    write_to_log_procs(f, log_message);
+
+    write_log(log_message);
 
     Registos *R = malloc(sizeof(Infos));
 
@@ -46,19 +45,20 @@ void worker(){
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "writing!!!\n");
 
-    sem_wait(mutex);
+    sem_wait(mutex_shm);
+    write_log(log_message);
     write_to_shared_memory(tudo, info, R);
-    write_to_log_procs(f, log_message);
-    sem_post(mutex);
+    sleep(5);
+    sem_post(mutex_shm);
 
     #ifdef DEBUG
     printf("Worker [%d] leaving!!!\n", getpid());
     #endif
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "leaving!!!\n");
-    write_to_log_procs(f, log_message);
+    
+    write_log(log_message);
 
-    fclose(f);
     exit(0);
 }
 
@@ -67,9 +67,9 @@ void alerts_watcher(){
     printf("Alert Watcher [%d] created!!!\n", getpid());
     #endif
 
-    write_to_log(log_file, ALERTS_WATCHER_START);
+    write_log(ALERTS_WATCHER_START);
 
-    write_to_log(log_file, ALERTS_WATCHER_END);
+    write_log(ALERTS_WATCHER_END);
 
     #ifdef DEBUG
     printf("Alert Watcher [%d] leaving!!!\n", getpid());
@@ -84,9 +84,9 @@ void *console_reader(void* p){
     printf("Thread console_reader [%d] starting!!!\n", id);
     #endif
 
-    write_to_log(log_file, CONSOLE_READER_START);
-
-    write_to_log(log_file, CONSOLE_READER_END);
+    write_log(CONSOLE_READER_START);
+    
+    write_log(CONSOLE_READER_END);
     
     pthread_exit(NULL);
 }
@@ -99,9 +99,9 @@ void *sensor_reader(void* p){
     printf("Thread sensor_reader [%d] starting!!!\n", id);
     #endif
 
-    write_to_log(log_file, SENSOR_READER_START);
+    write_log(SENSOR_READER_START);
 
-    write_to_log(log_file, SENSOR_READER_END);
+    write_log(SENSOR_READER_END);
 
     pthread_exit(NULL);
 }
@@ -114,9 +114,9 @@ void *dispatcher(void* p){
     printf("Thread dispatcher [%d] starting!!!\n", id);
     #endif
 
-    write_to_log(log_file, DISPATCHER_START);
-
-    write_to_log(log_file, DISPATCHER_END);
+    write_log(DISPATCHER_START);
+    
+    write_log(DISPATCHER_END);
 
     pthread_exit(NULL);
 }
@@ -135,11 +135,11 @@ int main(int argc, char *argv[]){
 
     configs = leitura_ficheiro(argv[1]);
 
+    pthread_mutex_init(&mutex_threads, NULL);
+
     #ifdef DEBUG
     printf("Queue_sz: %d\nN_Workers: %d\nMax_Keys: %d\nMax_Sensors: %d\nMax_Alerts: %d\n", configs->QUEUE_SZ, configs->N_WORKERS, configs->MAX_KEYS, configs->MAX_SENSORS, configs->MAX_ALERTS);
     #endif
-
-    write_to_log(log_file, PROG_START);
 
     //Criaçao shared memory
     tudo = create_shared_memory(configs->MAX_KEYS);
@@ -150,8 +150,12 @@ int main(int argc, char *argv[]){
 
     //Criaçao do semaforo mutex de acesso a shared memory
     sem_unlink("MUTEX");
-	mutex = sem_open("MUTEX", O_CREAT|O_EXCL, 0777, 1);
+	mutex_shm = sem_open("MUTEX", O_CREAT|O_EXCL, 0777, 1);
 
+    sem_unlink("MUTEX_LOG");
+    mutex_log = sem_open("MUTEX_LOG", O_CREAT, 0644, 1);
+
+    write_log(PROG_START);
 
     //Criaçao processos worker
     for(i = 0; i<configs->N_WORKERS; i++){
@@ -207,15 +211,20 @@ int main(int argc, char *argv[]){
 
     print_shared_memory(tudo, info);
 
+    write_log(PROG_END);
+
 	//libertar semaforo mutex de acesso a shared memory
-    sem_close(mutex);
+    sem_close(mutex_shm);
 	sem_unlink("MUTEX");
     
+    sem_close(mutex_log);
+    sem_unlink("MUTEX_LOG");
+
+    pthread_mutex_destroy(&mutex_threads);
+
     //libertar toda a shm
     get_rid_shm(tudo);
     get_rid_shm_infos(info);
-
-    write_to_log(log_file, PROG_END);
     
     exit(0);
 }

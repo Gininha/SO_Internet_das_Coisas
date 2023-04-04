@@ -1,6 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <semaphore.h> 
+#include <string.h>
 
 #define PROG_START "Programa Iniciado\n"
 #define PROG_END "Programa Finalizado\n"
@@ -21,7 +28,6 @@ typedef struct{
     int MAX_ALERTS;
 }Configuracoes;
 
-void write_to_log(FILE *Pointer, char *string);
-void write_to_log_procs(FILE *Pointer, char *string);
+void write_to_log(char *string);
 
 Configuracoes *leitura_ficheiro(char *nome);
