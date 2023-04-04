@@ -10,6 +10,15 @@ Registos *tudo;
 sem_t *mutex_shm, *mutex_log;
 pthread_mutex_t mutex_threads;
 
+void write_log(char *log_message){
+
+    sem_wait(mutex_log);
+    pthread_mutex_lock(&mutex_threads);
+    write_to_log(log_message);
+    pthread_mutex_unlock(&mutex_threads);
+    sem_post(mutex_log);
+    
+}
 
 void worker(){
     
@@ -21,11 +30,7 @@ void worker(){
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "created!!!\n");
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(log_message);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(log_message);
 
     Registos *R = malloc(sizeof(Infos));
 
@@ -40,13 +45,8 @@ void worker(){
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "writing!!!\n");
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(log_message);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
-
     sem_wait(mutex_shm);
+    write_log(log_message);
     write_to_shared_memory(tudo, info, R);
     sleep(5);
     sem_post(mutex_shm);
@@ -57,11 +57,7 @@ void worker(){
 
     sprintf(log_message, "%s %d %s", "Worker", getpid(), "leaving!!!\n");
     
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(log_message);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(log_message);
 
     exit(0);
 }
@@ -71,17 +67,9 @@ void alerts_watcher(){
     printf("Alert Watcher [%d] created!!!\n", getpid());
     #endif
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(ALERTS_WATCHER_START);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
-    
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(ALERTS_WATCHER_END);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(ALERTS_WATCHER_START);
+
+    write_log(ALERTS_WATCHER_END);
 
     #ifdef DEBUG
     printf("Alert Watcher [%d] leaving!!!\n", getpid());
@@ -96,17 +84,9 @@ void *console_reader(void* p){
     printf("Thread console_reader [%d] starting!!!\n", id);
     #endif
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(CONSOLE_READER_START);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
-
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(CONSOLE_READER_END);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(CONSOLE_READER_START);
+    
+    write_log(CONSOLE_READER_END);
     
     pthread_exit(NULL);
 }
@@ -119,17 +99,9 @@ void *sensor_reader(void* p){
     printf("Thread sensor_reader [%d] starting!!!\n", id);
     #endif
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(SENSOR_READER_START);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(SENSOR_READER_START);
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(SENSOR_READER_END);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(SENSOR_READER_END);
 
     pthread_exit(NULL);
 }
@@ -142,17 +114,9 @@ void *dispatcher(void* p){
     printf("Thread dispatcher [%d] starting!!!\n", id);
     #endif
 
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(DISPATCHER_START);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
-
-    sem_wait(mutex_log);
-    pthread_mutex_lock(&mutex_threads);
-    write_to_log(DISPATCHER_END);
-    pthread_mutex_unlock(&mutex_threads);
-    sem_post(mutex_log);
+    write_log(DISPATCHER_START);
+    
+    write_log(DISPATCHER_END);
 
     pthread_exit(NULL);
 }
@@ -177,8 +141,6 @@ int main(int argc, char *argv[]){
     printf("Queue_sz: %d\nN_Workers: %d\nMax_Keys: %d\nMax_Sensors: %d\nMax_Alerts: %d\n", configs->QUEUE_SZ, configs->N_WORKERS, configs->MAX_KEYS, configs->MAX_SENSORS, configs->MAX_ALERTS);
     #endif
 
-    write_to_log(PROG_START);
-
     //Criaçao shared memory
     tudo = create_shared_memory(configs->MAX_KEYS);
     info = create_shared_memory_infos();
@@ -192,6 +154,8 @@ int main(int argc, char *argv[]){
 
     sem_unlink("MUTEX_LOG");
     mutex_log = sem_open("MUTEX_LOG", O_CREAT, 0644, 1);
+
+    write_log(PROG_START);
 
     //Criaçao processos worker
     for(i = 0; i<configs->N_WORKERS; i++){
@@ -247,6 +211,8 @@ int main(int argc, char *argv[]){
 
     print_shared_memory(tudo, info);
 
+    write_log(PROG_END);
+
 	//libertar semaforo mutex de acesso a shared memory
     sem_close(mutex_shm);
 	sem_unlink("MUTEX");
@@ -254,11 +220,11 @@ int main(int argc, char *argv[]){
     sem_close(mutex_log);
     sem_unlink("MUTEX_LOG");
 
+    pthread_mutex_destroy(&mutex_threads);
+
     //libertar toda a shm
     get_rid_shm(tudo);
     get_rid_shm_infos(info);
-
-    write_to_log(PROG_END);
     
     exit(0);
 }

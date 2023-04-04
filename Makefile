@@ -10,7 +10,7 @@
 
 CC = gcc
 OBJS = system_manager.o shared_memory.o log.o
-OBJS2 = sensor.o
+OBJS2 = sensor.o shared_memory.o
 OBJS3 = user_console.o
 PROG = home_iot
 SENSOR = sensor
