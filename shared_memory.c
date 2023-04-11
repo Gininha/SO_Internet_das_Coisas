@@ -1,6 +1,6 @@
 #include "Shared_Memory.h"
 
-int shmid, shmid2, shmid3;
+int shmid, shmid2, shmid3, shmid4, shmid5;
 
 Registos* open_shared_memory(int num_registos){
 
@@ -163,6 +163,60 @@ Sem_Log* create_shared_memory_log(){
     return pointer;
 }
 
+sem_t* create_shared_memory_Console_Pipe(){
+
+    sem_t *mutex;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_CONSOLE_PIPE_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // allocate shared memory
+    if ((shmid5 = shmget(key, sizeof(sem_t), IPC_CREAT | 0777)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // attach shared memory to pointer
+    if ((mutex = (sem_t*) shmat(shmid5, NULL, 0)) == (void*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    sem_init(mutex, 1, 1);
+
+    return mutex;
+}
+
+sem_t* create_shared_memory_Sensor_Pipe(){
+
+    sem_t *mutex;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_SENSOR_PIPE_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // allocate shared memory
+    if ((shmid4 = shmget(key, sizeof(sem_t), IPC_CREAT | 0777)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // attach shared memory to pointer
+    if ((mutex = (sem_t*) shmat(shmid4, NULL, 0)) == (void*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    sem_init(mutex, 1, 1);
+
+    return mutex;
+}
+
 void get_rid_shm(Registos *registo){
     // Detach shared memory
     if (shmdt(registo) == -1) {
@@ -210,6 +264,43 @@ void get_rid_shm_log(Sem_Log *log){
     }
 
 }
+
+void get_rid_shm_User_Pipe(sem_t* sem){
+
+    sem_destroy(sem);
+
+    // Detach shared memory
+    if (shmdt(sem) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
+    // Destroy shared memory
+    if (shmctl(shmid5, IPC_RMID, NULL) == -1) {
+        perror("shmctl");
+        exit(1);
+    }
+
+}
+
+void get_rid_shm_Console_Pipe(sem_t* sem){
+
+    sem_destroy(sem);
+
+    // Detach shared memory
+    if (shmdt(sem) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
+    // Destroy shared memory
+    if (shmctl(shmid5, IPC_RMID, NULL) == -1) {
+        perror("shmctl");
+        exit(1);
+    }
+
+}
+
 
 void print_shared_memory(Registos *Pointer, Infos *infos){
 
