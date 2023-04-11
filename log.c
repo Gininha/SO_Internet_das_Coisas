@@ -1,8 +1,11 @@
 #include "log.h"
 
 
-void write_to_log(char *string){
+void write_log(char *string, Sem_Log *semaforo_log){
     
+    sem_wait(&(semaforo_log->mutex_log));
+    pthread_mutex_lock(&(semaforo_log->mutex_threads));
+
     time_t now = time(NULL);           // get the current time
     struct tm *local_time = localtime(&now);  // convert it to local time
     char time_str[9];
@@ -16,13 +19,18 @@ void write_to_log(char *string){
     }
     write(fd, string, strlen(string));
     close(fd);
+
+    pthread_mutex_unlock(&(semaforo_log->mutex_threads));
+    sem_post(&(semaforo_log->mutex_log));
 }
 
 Configuracoes* leitura_ficheiro(char *nome){
 
     FILE * file = fopen(nome, "r");
-    if(file == NULL) printf("Ficheiro nao encontrado\n");
-
+    if(file == NULL){
+        printf("Ficheiro nao encontrado\n");
+        return NULL;
+    }
     int a,b,c,d,e;
     Configuracoes *configs = malloc(sizeof(Configuracoes));
 

@@ -3,36 +3,30 @@
 #include <sys/shm.h>
 #include <string.h>
 #include <stdlib.h>
-#define CHAVE_LEN 33
+#include <fcntl.h>
+#include <semaphore.h> 
+#include <pthread.h>
+
+#include "log.h"
 
 #define SHM_PROG "/tmp"
 #define SHM_REG_ID 1
 #define SHM_INFOS_ID 2
 #define SHM_LOG_ID 3
-
-
-typedef struct{
-    char nome[CHAVE_LEN];
-    int last_val;
-    int min_val;
-    int max_val;
-    double media;
-    int total;
-}Registos;
-
-typedef struct{
-    int max_keys;
-    int keys_atual;
-}Infos;
+#define SHM_SENSOR_PIPE_ID 4
+#define SHM_CONSOLE_PIPE_ID 5
 
 Registos* create_shared_memory(int num_registos);
-Infos* create_shared_memory_infos();
+Infos* create_shared_memory_infos(Configuracoes* configs);
+Sem_Log* create_shared_memory_log();
 
 Registos* open_shared_memory(int num_registos);
 Infos* open_shared_memory_infos();
+Sem_Log* open_shared_memory_log();
 
 void get_rid_shm(Registos *registo);
 void get_rid_shm_infos(Infos *infos);
+void get_rid_shm_log(Sem_Log *log);
 
-void write_to_shared_memory(Registos *Pointer, Infos *infos, Registos *registo);
+int write_to_shared_memory(Registos *Pointer, Infos *infos, Registos *registo);
 void print_shared_memory(Registos *Pointer, Infos *infos);
