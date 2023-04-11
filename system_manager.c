@@ -1,3 +1,7 @@
+/*
+Luis Leite 2021199102
+*/
+
 #include "Shared_Memory.h"
 
 #define DEBUG
@@ -8,6 +12,7 @@ Infos *info;
 Registos *tudo;
 sem_t *mutex_shm;
 Sem_Log *semaforo_log;
+Alertas *alertas;
 
 void worker(){
     
@@ -144,9 +149,10 @@ int main(int argc, char *argv[]){
     #endif
 
     //Criaçao shared memory
-    tudo = create_shared_memory(configs->MAX_KEYS);
+    tudo = create_shared_memory(configs->MAX_SENSORS);
     info = create_shared_memory_infos(configs);
     semaforo_log = create_shared_memory_log();
+    alertas = create_shared_memory_alerts(configs->MAX_ALERTS);
 
     //Criaçao do semaforo mutex de acesso a shared memory
     sem_unlink("MUTEX");
@@ -217,6 +223,7 @@ int main(int argc, char *argv[]){
     get_rid_shm(tudo);
     get_rid_shm_infos(info);
     get_rid_shm_log(semaforo_log);
+    get_rid_shm_alerts(alertas);
     
     exit(0);
 }

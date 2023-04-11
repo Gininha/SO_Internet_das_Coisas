@@ -1,3 +1,7 @@
+/*
+Luis Leite 2021199102
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -38,6 +42,12 @@ typedef struct{
     double media;
     int total;
 }Registos;
+
+typedef struct{
+    char nome[CHAVE_LEN];
+    int min;
+    int max;
+}Alertas;
 
 typedef struct{
     int max_keys;

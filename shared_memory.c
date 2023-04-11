@@ -1,6 +1,10 @@
+/*
+Luis Leite 2021199102
+*/
+
 #include "Shared_Memory.h"
 
-int shmid, shmid2, shmid3, shmid4, shmid5;
+int shmid, shmid2, shmid3, shmid4, shmid5, shmid6;
 
 Registos* open_shared_memory(int num_registos){
 
@@ -51,6 +55,32 @@ Registos* create_shared_memory(int num_registos) {
 
     return pointer_registos;
 }
+
+Alertas* create_shared_memory_alerts(int num_registos){
+
+    Alertas *pointer;
+    key_t key;
+
+    if ((key = ftok(SHM_PROG, SHM_ALERTS_ID)) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // allocate shared memory
+    if ((shmid6 = shmget(key, sizeof(Alertas)*num_registos, IPC_CREAT | 0777)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // attach shared memory to pointer
+    if ((pointer = (Alertas*) shmat(shmid6, NULL, 0)) == (void*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    return pointer;
+}
+
 
 Infos* open_shared_memory_infos(){
 
@@ -226,6 +256,20 @@ void get_rid_shm(Registos *registo){
 
     // Destroy shared memory
     if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+        perror("shmctl");
+        exit(1);
+    }
+}
+
+void get_rid_shm_alerts(Alertas *alertas){
+    // Detach shared memory
+    if (shmdt(alertas) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
+    // Destroy shared memory
+    if (shmctl(shmid6, IPC_RMID, NULL) == -1) {
         perror("shmctl");
         exit(1);
     }
