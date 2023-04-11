@@ -13,7 +13,6 @@ int main(int argc, char *argv[]){
     int random;
     char log_message[250];
 
-
     if (argc != 6){
         printf("$ sensor {identificador do sensor} {intervalo entre envios (s)} {chave} {min val} {max val}\n");
         return 0;
