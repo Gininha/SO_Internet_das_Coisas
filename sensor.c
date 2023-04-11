@@ -5,9 +5,14 @@
 
 #include "Shared_Memory.h"
 
+Sem_Log *semaforo_log;
+
+
 int main(int argc, char *argv[]){
 
     int random;
+    char log_message[250];
+
 
     if (argc != 6){
         printf("$ sensor {identificador do sensor} {intervalo entre envios (s)} {chave} {min val} {max val}\n");
@@ -24,17 +29,20 @@ int main(int argc, char *argv[]){
         return 0;
     }
 
-    int forever = atoi(argv[2]);
+    int intervalo = atoi(argv[2]);
     int min_val = atoi(argv[4]);
     int max_val = atoi(argv[5]);
     
-
+    semaforo_log = open_shared_memory_log();
+    
     while(1){
         random = rand() % (max_val - min_val + 1) + min_val;
 
-        printf("%s#%s#%d\n",argv[1], argv[3], random);
+        printf("%s#%s#%d\n", argv[1], argv[3], random);
+        sprintf(log_message, "%s#%s#%d\n", argv[1], argv[3], random);
+        write_log(log_message, semaforo_log);
 
-        sleep(forever);
+        sleep(intervalo);
     }
 
     return 0;
