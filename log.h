@@ -1,3 +1,7 @@
+/*
+Luis Leite 2021199102
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -8,6 +12,8 @@
 #include <fcntl.h>
 #include <semaphore.h> 
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #define PROG_START "Programa Iniciado\n"
 #define PROG_END "Programa Finalizado\n"
@@ -19,6 +25,10 @@
 #define CONSOLE_READER_END "Thread Console_Reader finished\n"
 #define ALERTS_WATCHER_START "Process Alerts_Watcher started\n"
 #define ALERTS_WATCHER_END "Process Alerts_Watcher finished\n"
+#define FILA_ESPERA_CHEIA "Lotaçao cheia -> sensor descartado!!!\n"
+
+#define SENSOR_PIPE_NAME "SENSOR_PIPE"
+#define CONSOLE_PIPE_NAME "CONSOLE_PIPE"
 
 #define CHAVE_LEN 33
 
@@ -36,8 +46,15 @@ typedef struct{
     int min_val;
     int max_val;
     double media;
+    int soma;
     int total;
 }Registos;
+
+typedef struct{
+    char nome[CHAVE_LEN];
+    int min;
+    int max;
+}Alertas;
 
 typedef struct{
     int max_keys;
@@ -46,6 +63,9 @@ typedef struct{
     int sensors_atual;
     int max_alerts;
     int alerts_atual;
+    sem_t full;
+    sem_t empty;
+    sem_t free_workers;
 }Infos;
 
 typedef struct{
@@ -53,7 +73,20 @@ typedef struct{
     pthread_mutex_t mutex_threads;
 }Sem_Log;
 
+typedef struct Fila_espera{
+    void* infos;
+    char tipo;                  //s -> sensor || u -> user
+    struct Fila_espera *next;
+}Fila_espera;
+
+typedef struct{
+    char id_sensor[CHAVE_LEN];
+    char chave[CHAVE_LEN];
+    int value;
+}Sensor_thread;
+
 void write_log(char *string, Sem_Log *semaforo_log);
 
-
 Configuracoes *leitura_ficheiro(char *nome);
+
+void process_task(char *buffer, Registos* registos, Infos* infos);
