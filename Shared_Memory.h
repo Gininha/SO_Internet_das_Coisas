@@ -45,4 +45,10 @@ void get_rid_shm_Console_Pipe(sem_t* sem);
 void get_rid_shm_alerts(Alertas *alertas);
 
 int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *registo);
+int add_alert(Alertas *alertas, Infos *infos, Alertas *alerta_add);
+int remove_alert(Alertas *alertas, Infos *infos, char *id_remove);
 void print_shared_memory(Registos *Pointer, Infos *infos);
+void print_sensors(Registos *Pointer, Infos *infos, MQ *message_send);
+void reset(Registos *Pointer, Infos *infos, MQ *message_send);
+void print_stats(Registos *Pointer, Infos *infos, MQ *message_send);
+void list_alerts(Alertas *alertas, Infos *infos, MQ *message_send);

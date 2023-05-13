@@ -11,21 +11,23 @@ void write_log(char *string, Sem_Log *semaforo_log){
 
     time_t now = time(NULL);           // get the current time
     struct tm *local_time = localtime(&now);  // convert it to local time
-    char time_str[9];
-    strftime(time_str, sizeof(time_str), "%T", local_time);  // format time as HH:MM:SS string
+    char time_str[10];
+    strftime(time_str, sizeof(time_str), "%T ", local_time);  // format time as HH:MM:SS string
 
-   int fd = open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
-
-    if (fd == -1) {
-        perror("Error opening log file");
+    if (write(semaforo_log->log_fd, time_str, strlen(time_str)) == -1) {
+        perror("Error writing to log file");
         return;
     }
-    write(fd, string, strlen(string));
-    close(fd);
+
+    if (write(semaforo_log->log_fd, string, strlen(string)) == -1) {
+        perror("Error writing to log file");
+        return;
+    }
 
     pthread_mutex_unlock(&(semaforo_log->mutex_threads));
     sem_post(&(semaforo_log->mutex_log));
 }
+
 
 Configuracoes* leitura_ficheiro(char *nome){
 
