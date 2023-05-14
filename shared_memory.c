@@ -132,10 +132,25 @@ Infos* create_shared_memory_infos(Configuracoes *configs){
     pointer_infos->alerts_atual = 0;
     pointer_infos->keys_atual = 0;
     pointer_infos->sensors_atual = 0;
+    pointer_infos->condition = 0;
+    pointer_infos->end_workers = 0;
     pointer_infos->max_alerts = configs->MAX_ALERTS;
     pointer_infos->max_keys = configs->MAX_KEYS;
     pointer_infos->max_sensors = configs->MAX_SENSORS;
 
+    pthread_mutexattr_t attrmutex;
+    pthread_condattr_t attrcondv;
+
+    /* Initialize attribute of mutex. */
+    pthread_mutexattr_init(&attrmutex);
+    pthread_mutexattr_setpshared(&attrmutex, PTHREAD_PROCESS_SHARED);
+
+    /* Initialize attribute of condition variable. */
+    pthread_condattr_init(&attrcondv);
+    pthread_condattr_setpshared(&attrcondv, PTHREAD_PROCESS_SHARED);
+
+    pthread_cond_init(&pointer_infos->cond, &attrcondv);
+    pthread_mutex_init(&pointer_infos->mutex, &attrmutex);
 
     sem_init(&(pointer_infos->empty), 1, configs->QUEUE_SZ);
     sem_init(&(pointer_infos->full), 1, 0);
@@ -156,13 +171,13 @@ int* create_worker_status(Configuracoes* configs){
     }
 
     // allocate shared memory
-    if ((shmid = shmget(key, sizeof(int)*configs->N_WORKERS, IPC_CREAT | 0777)) == -1) {
+    if ((shmid7 = shmget(key, sizeof(int)*configs->N_WORKERS, IPC_CREAT | 0777)) == -1) {
         perror("shmget");
         exit(1);
     }
 
     // attach shared memory to pointer
-    if ((status = (int*) shmat(shmid, NULL, 0)) == (void*) -1) {
+    if ((status = (int*) shmat(shmid7, NULL, 0)) == (void*) -1) {
         perror("shmat");
         exit(1);
     }
@@ -196,6 +211,12 @@ Sem_Log* open_shared_memory_log(){
         exit(1);
     }
 
+    pointer->log_fd= open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+    if (pointer->log_fd == -1) {
+        perror("Error opening log file");
+        exit(EXIT_FAILURE);
+    }
+
     return pointer;
 }
 
@@ -224,6 +245,12 @@ Sem_Log* create_shared_memory_log(){
     sem_init(&(pointer->mutex_log), 1, 1);
 
     pthread_mutex_init(&(pointer->mutex_threads), NULL);
+
+    pointer->log_fd= open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+    if (pointer->log_fd == -1) {
+        perror("Error opening log file");
+        exit(EXIT_FAILURE);
+    }
 
     return pointer;
 }
@@ -365,6 +392,22 @@ void get_rid_shm_alerts(Alertas *alertas){
     
 }
 
+void get_rid_worker_status(int *status_array){
+    
+    // Detach shared memory
+    if (shmdt(status_array) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
+    // Destroy shared memory
+    if (shmctl(shmid7, IPC_RMID, NULL) == -1) {
+        perror("shmctl");
+        exit(1);
+    }
+
+}
+
 void get_rid_shm_infos(Infos *infos){
 
     sem_destroy(&infos->empty);
@@ -448,6 +491,122 @@ void print_shared_memory(Registos *Pointer, Infos *infos){
     }
 }
 
+void print_sensors(Registos *Pointer, Infos *infos, MQ *message_send){
+    int i;
+    char buffer[500];
+    message_send->infos[0] = '\0';
+
+    strcat(message_send->infos, "Sensors\tID\n");
+
+    for(i = 0; i < infos->sensors_atual; i++){
+        sprintf(buffer, "%s\n", Pointer[i].nome);
+        strcat(message_send->infos, buffer);
+    }
+}
+
+void reset(Registos *Pointer, Infos *infos, MQ *message_send){
+    int i;
+    message_send->infos[0] = '\0';
+
+    for(i = 0; i < infos->sensors_atual;){
+        Pointer[i].id[0] = '\0';
+        Pointer[i].nome[0] = '\0';
+        Pointer[i].last_val = 0;
+        Pointer[i].max_val = 0;
+        Pointer[i].media = 0;
+        Pointer[i].min_val = 0;
+        Pointer[i].soma = 0;
+        Pointer[i].total = 0;
+        infos->sensors_atual--;
+        infos->keys_atual--;
+    }
+
+    strcat(message_send->infos, "OK\n");
+}
+
+void print_stats(Registos *Pointer, Infos *infos, MQ *message_send){
+
+    int i;
+    char buffer[500];
+    message_send->infos[0] = '\0';
+
+    strcat(message_send->infos, "Stats\tKEY\tLAST\tMIN\tMAX\tAVG\tCOUNT\n");
+
+    for(i=0; i<infos->sensors_atual; i++){
+        sprintf(buffer, "Registo[%d] -> Chave: %s\tLast_Val: %d\tMin val: %d\tMax val: %d\tMedia: %.2f\ttTotal: %d\n",i+1, Pointer[i].nome, Pointer[i].last_val, Pointer[i].min_val, Pointer[i].max_val, Pointer[i].media, Pointer[i].total);
+        strcat(message_send->infos, buffer);
+    }
+
+}
+
+void list_alerts(Alertas *alertas, Infos *infos, MQ *message_send){
+    int i;
+    char buffer[500];
+    message_send->infos[0] = '\0';
+
+    strcat(message_send->infos, "Alerts List\tID\tKEY\tMAX\tMIN\n");
+
+    for(i=0; i<infos->alerts_atual; i++){
+        sprintf(buffer, "Alerta[%d] -> Id: %s   Key: %s   Max: %d    Min: %d\n",i+1, alertas[i].id, alertas[i].nome, alertas[i].max, alertas[i].min);
+        strcat(message_send->infos, buffer);
+    }
+}
+
+int add_alert(Alertas *alertas, Infos *infos, Alertas *alerta_add){
+    int i;
+
+    if(infos->keys_atual == infos->max_keys || infos->alerts_atual == infos->max_alerts){
+
+        printf("Alertas maximos / Keys maximas atingido\n");
+        return 0;
+    }
+
+    for(i = 0; i < infos->alerts_atual; i++){
+        if(strcmp(alertas->id, alerta_add->id) == 0){
+            return -1;
+        }
+    }
+
+
+    strcpy(alertas[infos->alerts_atual].id, alerta_add->id);
+    strcpy(alertas[infos->alerts_atual].nome, alerta_add->nome);
+    alertas[infos->alerts_atual].max = alerta_add->max;
+    alertas[infos->alerts_atual].min = alerta_add->min;
+    alertas[infos->alerts_atual].user_console = alerta_add->user_console;
+    infos->alerts_atual++;
+    infos->keys_atual++;
+    return 1;
+
+}
+
+int remove_alert(Alertas *alertas, Infos *infos, char *id_remove){
+    
+    int i, j;
+
+    for(i=0; i<infos->alerts_atual; i++){
+        if((strcmp(id_remove, alertas[i].id) == 0)){
+            if(i == infos->alerts_atual-1){
+                alertas[i].nome[0] = '\0';
+                alertas[i].id[0] = '\0';
+                infos->alerts_atual--;
+                infos->keys_atual--;
+                return 1;
+            }
+            for(j = i; j<infos->alerts_atual-1; j++){
+                strcpy(alertas[j].id, alertas[j+1].id);
+                strcpy(alertas[j].nome, alertas[j+1].nome);
+                alertas[j].min = alertas[j+1].min;
+                alertas[j].max = alertas[j+1].max;
+            }
+            infos->alerts_atual--;
+            infos->keys_atual--;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *registo){
 
     int i;
@@ -456,7 +615,7 @@ int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *regis
 
         for(i=0; i<infos->sensors_atual; i++){
 
-            if(strcmp(Pointer[i].nome, registo->chave) == 0){
+            if(strcmp(Pointer[i].id, registo->id_sensor) == 0){
 
                 Pointer[i].last_val = registo->value;
                 if(Pointer[i].min_val > registo->value)
@@ -465,7 +624,7 @@ int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *regis
                     Pointer[i].max_val = registo->value;
                 Pointer[i].soma += registo->value;
                 Pointer[i].total++;
-                Pointer[i].media = Pointer[i].soma/Pointer[i].total;
+                Pointer[i].media = (float)Pointer[i].soma/Pointer[i].total;
                 return 0;
             }
         }
@@ -475,6 +634,7 @@ int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *regis
     }
 
     if(infos->sensors_atual == 0){
+        strcpy(Pointer[0].id, registo->id_sensor);
         strcpy(Pointer[0].nome, registo->chave);
         Pointer[0].last_val = registo->value;
         Pointer[0].min_val = registo->value;
@@ -489,7 +649,7 @@ int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *regis
 
     for(i=0; i<infos->sensors_atual; i++){
 
-        if(strcmp(Pointer[i].nome, registo->chave) == 0){
+        if(strcmp(Pointer[i].id, registo->id_sensor) == 0){
 
             Pointer[i].last_val = registo->value;
             if(Pointer[i].min_val > registo->value)
@@ -503,6 +663,7 @@ int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *regis
         }
     }
 
+    strcpy(Pointer[i].id, registo->id_sensor);
     strcpy(Pointer[i].nome, registo->chave);
     Pointer[i].last_val = registo->value;
     Pointer[i].min_val = registo->value;
