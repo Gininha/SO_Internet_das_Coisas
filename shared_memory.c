@@ -133,6 +133,7 @@ Infos* create_shared_memory_infos(Configuracoes *configs){
     pointer_infos->keys_atual = 0;
     pointer_infos->sensors_atual = 0;
     pointer_infos->condition = 0;
+    pointer_infos->end_workers = 0;
     pointer_infos->max_alerts = configs->MAX_ALERTS;
     pointer_infos->max_keys = configs->MAX_KEYS;
     pointer_infos->max_sensors = configs->MAX_SENSORS;
@@ -170,13 +171,13 @@ int* create_worker_status(Configuracoes* configs){
     }
 
     // allocate shared memory
-    if ((shmid = shmget(key, sizeof(int)*configs->N_WORKERS, IPC_CREAT | 0777)) == -1) {
+    if ((shmid7 = shmget(key, sizeof(int)*configs->N_WORKERS, IPC_CREAT | 0777)) == -1) {
         perror("shmget");
         exit(1);
     }
 
     // attach shared memory to pointer
-    if ((status = (int*) shmat(shmid, NULL, 0)) == (void*) -1) {
+    if ((status = (int*) shmat(shmid7, NULL, 0)) == (void*) -1) {
         perror("shmat");
         exit(1);
     }
@@ -389,6 +390,22 @@ void get_rid_shm_alerts(Alertas *alertas){
         exit(1);
     }
     
+}
+
+void get_rid_worker_status(int *status_array){
+    
+    // Detach shared memory
+    if (shmdt(status_array) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
+    // Destroy shared memory
+    if (shmctl(shmid7, IPC_RMID, NULL) == -1) {
+        perror("shmctl");
+        exit(1);
+    }
+
 }
 
 void get_rid_shm_infos(Infos *infos){

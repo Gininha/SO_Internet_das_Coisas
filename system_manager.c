@@ -27,6 +27,39 @@ void cleanup(int singum){
     int i;
     char log_message[250];
 
+    waitpid(procs[configs->N_WORKERS], NULL, WNOHANG);
+    info->end_workers = 1;
+
+    for(i = 0; i<configs->N_WORKERS; i++){
+        /*
+        if(i == configs->N_WORKERS){
+
+            write_log(ALERTS_WATCHER_END, semaforo_log);
+            kill(procs[i], SIGTERM);
+            waitpid(procs[i], NULL, 0); // Wait for child process to exit
+        }else{
+
+            sprintf(log_message, "%s %d %s", "Worker", procs[i], "leaving!!!\n");
+            write_log(log_message, semaforo_log);
+            kill(procs[i], SIGTERM);
+            waitpid(procs[i], NULL, 0); // Wait for child process to exit
+        }
+        */
+        if(procs_status[i]){
+            kill(procs[i], SIGTERM);
+            waitpid(procs[i], NULL, 0); // Wait for child process to exit
+        }else{
+            waitpid(procs[i], NULL, WNOHANG); // Wait for child process to exit
+        }
+        sprintf(log_message, "%s %d %s", "Worker", procs[i], "leaving!!!\n");
+        write_log(log_message, semaforo_log);
+
+    }
+
+    pthread_mutex_lock(&info->mutex);
+    pthread_cond_signal(&info->cond);
+    pthread_mutex_unlock(&info->mutex);
+
     for (int i = 0; i < NUM_THREADS; i++) {
         
         pthread_cancel(threads[i]);
@@ -42,31 +75,21 @@ void cleanup(int singum){
         }
     }
 
-    for(i = 0; i<configs->N_WORKERS + 1; i++){
-
-        if(i == configs->N_WORKERS){
-
-            write_log(ALERTS_WATCHER_END, semaforo_log);
-            kill(procs[i], SIGTERM);
-            waitpid(procs[i], NULL, 0); // Wait for child process to exit
-        }else{
-
-            sprintf(log_message, "%s %d %s", "Worker", procs[i], "leaving!!!\n");
-            write_log(log_message, semaforo_log);
-            kill(procs[i], SIGTERM);
-            waitpid(procs[i], NULL, 0); // Wait for child process to exit
-        }
-    }
-
-    write_log(PROG_END, semaforo_log);
+    char buffer[1024];
+    i = 1;
 
     //Libertar Fila
     Fila_espera *temp;
     while(Queue != NULL){
         temp = Queue;
         Queue = Queue->next;
+        sprintf(buffer, "%d -> %s\n", i, temp->infos);
+        write_log(buffer, semaforo_log);
         free(temp);
+        i++;
     }
+
+    write_log(PROG_END, semaforo_log);
 
     //libertar semaforo mutex de acesso a shared memory
     sem_close(mutex_shm);
@@ -93,8 +116,9 @@ void cleanup(int singum){
     get_rid_shm_alerts(alertas);
     get_rid_shm_Sensor_Pipe(sensor_pipe);
     get_rid_shm_Console_Pipe(console_pipe);
+    get_rid_worker_status(procs_status);
 
-
+    printf("FIM!!!\n");
     exit(0);
 
 }
@@ -120,7 +144,7 @@ void worker(int i){
     sem_post(&info->free_workers);
     sem_post(mutex_shm);
 
-    while(1){
+    while(!info->end_workers){
         read(worker_pipes[i][0], buffer, 250);
 
         if(process_task(buffer, tudo, alertas, info, semaforo_log)){
@@ -155,19 +179,22 @@ void alerts_watcher(){
 
     int alerta = 0;
 
-    while(1){
+    while(!info->end_workers){
         
         pthread_mutex_lock(&info->mutex);
-        while (alerta == info->condition) {
+        while (alerta == info->condition && !info->end_workers) {
             pthread_cond_wait(&info->cond, &info->mutex);
         }
-
+        if(info->end_workers){
+            pthread_mutex_unlock(&info->mutex);
+            exit(0);
+        }
         if(info->alerts_atual){
             for(i = 0; i < info->sensors_atual; i++){
                 for(j = 0; j < info->alerts_atual; j++){
                     if((tudo[i].last_val > alertas[j].max || tudo[i].last_val < alertas[j].min) && strcmp(tudo[i].nome, alertas[j].nome) == 0){
                         message_send.id = alertas[j].user_console;
-                        sprintf(buffer, "ALERT!!!\nvalue:%d   min:%d    max:%d\n", tudo[i].last_val, alertas[j].min, alertas[j].max);
+                        sprintf(buffer, "ALERT!!! %s value:%d   min:%d    max:%d\n", alertas[j].id, tudo[i].last_val, alertas[j].min, alertas[j].max);
                         strcpy(message_send.infos, buffer);
                         if (msgsnd(mq_id, &message_send, sizeof(MQ) - sizeof(long), 0) < 0) {
                             perror("msgsnd_alerts_watcher");

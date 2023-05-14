@@ -71,6 +71,7 @@ typedef struct{
     int alerts_atual;
     int msq_id;
     int condition;
+    int end_workers;
     sem_t full;
     sem_t empty;
     sem_t free_workers;

@@ -6,19 +6,31 @@ Luis Leite 2021199102
 
 Sem_Log *semaforo_log;
 sem_t *sem_pipe;
+char id[33];
 int fd;
 int contagem;
 
 void cleanup(int signum){
     char buffer[150];
+
+    if(signum == SIGTSTP){
+        printf("Enviadas %d leituras\n", contagem);
+        sprintf(buffer, "CTRL Z -> Enviadas %d mensagens por sensor %s\n", contagem, id);
+        write_log(buffer, semaforo_log);
+        return;
+    }
+
     close(fd);
+
     printf("Enviadas %d leituras\n", contagem);
+
     if(signum == SIGINT)
-        sprintf(buffer, "Sensor terminado (CTRL C) -> Enviadas %d leituras\n", contagem);
-    else
-        sprintf(buffer, "Sensor terminado (Pipe closed) -> Enviadas %d leituras\n", contagem);
+        sprintf(buffer, "Sensor %s terminado (CTRL C) -> Enviadas %d leituras\n", id, contagem);
+    if(signum == SIGPIPE)
+        sprintf(buffer, "Sensor %s terminado (Pipe closed) -> Enviadas %d leituras\n", id, contagem);
 
     write_log(buffer, semaforo_log);
+
     exit(0);
 }
 
@@ -30,6 +42,7 @@ int main(int argc, char *argv[]){
 
     signal(SIGINT, cleanup);
     signal(SIGPIPE, cleanup);
+    signal(SIGTSTP, cleanup);
 
     if (argc != 6){
         printf("$ sensor {identificador do sensor} {intervalo entre envios (s)} {chave} {min val} {max val}\n");
@@ -40,6 +53,7 @@ int main(int argc, char *argv[]){
         printf("3 < {identificador do sensor} < 32\n");
         return 0;
     }
+    strcpy(id, argv[1]);
 
     if ( strlen(argv[3]) < 3 || strlen(argv[3]) > 32 ){
         printf("3 < {chave} < 32\n");

@@ -22,6 +22,7 @@ pid_t pid;
 void cleanup(int signum){
     kill(pid, SIGTERM);
     waitpid(pid, NULL, 0); // Wait for child process to exit
+    close(fd);
     exit(0);
 }
 
