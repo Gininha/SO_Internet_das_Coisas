@@ -10,6 +10,7 @@ Luis Leite 2021199102
 #include <fcntl.h>
 #include <semaphore.h> 
 #include <pthread.h>
+#include <signal.h>
 
 #include "log.h"
 
@@ -20,6 +21,7 @@ Luis Leite 2021199102
 #define SHM_SENSOR_PIPE_ID 4
 #define SHM_CONSOLE_PIPE_ID 5
 #define SHM_ALERTS_ID 6
+#define SHM_STATUS 7
 
 Registos* create_shared_memory(int num_registos);
 Infos* create_shared_memory_infos(Configuracoes* configs);
@@ -27,10 +29,13 @@ Sem_Log* create_shared_memory_log();
 sem_t* create_shared_memory_Sensor_Pipe();
 sem_t* create_shared_memory_Console_Pipe();
 Alertas* create_shared_memory_alerts(int num_registos);
+int* create_worker_status(Configuracoes* configs);
 
 Registos* open_shared_memory(int num_registos);
 Infos* open_shared_memory_infos();
 Sem_Log* open_shared_memory_log();
+sem_t* open_shared_memory_Sensor_Pipe();
+sem_t* open_shared_memory_Console_Pipe();
 
 void get_rid_shm(Registos *registo);
 void get_rid_shm_infos(Infos *infos);
@@ -38,6 +43,13 @@ void get_rid_shm_log(Sem_Log *log);
 void get_rid_shm_Sensor_Pipe(sem_t* sem);
 void get_rid_shm_Console_Pipe(sem_t* sem);
 void get_rid_shm_alerts(Alertas *alertas);
+void get_rid_worker_status(int *array_status);
 
-int write_to_shared_memory(Registos *Pointer, Infos *infos, Registos *registo);
+int write_to_shared_memory(Registos *Pointer, Infos *infos, Sensor_thread *registo);
+int add_alert(Alertas *alertas, Infos *infos, Alertas *alerta_add);
+int remove_alert(Alertas *alertas, Infos *infos, char *id_remove);
 void print_shared_memory(Registos *Pointer, Infos *infos);
+void print_sensors(Registos *Pointer, Infos *infos, MQ *message_send);
+void reset(Registos *Pointer, Infos *infos, MQ *message_send);
+void print_stats(Registos *Pointer, Infos *infos, MQ *message_send);
+void list_alerts(Alertas *alertas, Infos *infos, MQ *message_send);
